@@ -1,53 +1,81 @@
-// content.js  v0.0.3  – no more Matryoshka spans
+/* content.js  –  v1.0 “Glow-Up”  */
 (() => {
-  const priceRegex = /(?:£|\$|€|₹)\s?(?:\d{1,3}(?:[, ]\d{3})*|\d+)(?:\.\d{2})?/g;
+  /* ----------  Config  ---------- */
+  const INDEXES = {
+    nasdaq: 0.12,
+    sp500: 0.10,
+    ftse: 0.07,
+    custom: 0       /* real value lives in storage */
+  };
 
-  const defaults = { age: 30, retireAge: 65, returnRate: 0.10 };
+  const priceRegex =
+    /(?:£|\$|€|₹)\s?(?:\d{1,3}(?:[, ]\d{3})*|\d+)(?:\.\d{2})?/g;
 
-  /** Fetch prefs once and cache (they rarely change) */
-  const prefsPromise = new Promise((res) =>
-    chrome.storage.sync.get(defaults, (d) => res(d))
-  );
+  /* ----------  Load prefs once  ---------- */
+  const prefsP = new Promise((res) => {
+    chrome.storage.sync.get(
+      { age: 30, retireAge: 65, index: "nasdaq", customRate: 0.10 },
+      (d) => res(d)
+    );
+  });
 
-  /** Style – inject one time */
-  if (!document.getElementById('ptfy-style')) {
-    const css = document.createElement('style');
-    css.id = 'ptfy-style';
+  /* ----------  Style injection  ---------- */
+  if (!document.getElementById("ptfy-style")) {
+    const css = document.createElement("style");
+    css.id = "ptfy-style";
     css.textContent = `
-      .ptfy-bubble{
-        color:#0b8 !important;
-        position:relative;
-        cursor:help;
+      :root { --ptfy-color: #0bc; }
+
+      .ptfy-bubble {
+        color: var(--ptfy-color) !important;
+        cursor: pointer;
+        position: relative;
+        display: inline-block;
+        transition: transform .15s cubic-bezier(.25,1.5,.5,1);
       }
-      .ptfy-bubble::after{
-        content:attr(data-tip);
-        position:absolute;
-        left:0;
-        top:-1.8em;
-        white-space:nowrap;
-        background:#111;
-        color:#fff;
-        padding:2px 6px;
-        border-radius:4px;
-        font-size:12px;
-        opacity:0;
-        transition:opacity .15s;
-        z-index:999999;
-        pointer-events:none;
+      .ptfy-bubble:hover { transform: scale(1.15); }
+
+      /* fancy tooltip */
+      .ptfy-bubble::after {
+        content: attr(data-tip);
+        position: absolute;
+        left: 50%; top: -2.4em;
+        transform: translateX(-50%) scale(.8);
+        background: #111;
+        color: #fff;
+        padding: 6px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        line-height: 1.2;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .18s ease, transform .18s ease;
+        box-shadow: 0 2px 6px rgba(0,0,0,.35);
       }
-      .ptfy-bubble:hover::after{opacity:1;}
+      .ptfy-bubble:hover::after {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+      }
+
+      @keyframes ptfy-pop {
+        0%   { transform: scale(.2); opacity: 0; }
+        70%  { transform: scale(1.25); }
+        100% { transform: scale(1); opacity: 1; }
+      }
     `;
     document.head.append(css);
   }
 
-  async function annotate(nodeList) {
-    const { age, retireAge, returnRate } = await prefsPromise;
-    const years = retireAge - age;
-    if (years <= 0) return;
+  /* ----------  Annotator ---------- */
+  async function annotate(nodes) {
+    const { age, retireAge, index, customRate } = await prefsP;
+    const annual = index === "custom" ? customRate : INDEXES[index];
+    const yrs = retireAge - age;
+    if (yrs <= 0) return;
 
-    nodeList.forEach((node) => {
-      // Skip if already inside one of our bubbles
-      if (node.parentElement?.closest('.ptfy-bubble')) return;
+    nodes.forEach((node) => {
+      if (node.parentElement?.closest(".ptfy-bubble")) return;
 
       priceRegex.lastIndex = 0;
       if (!priceRegex.test(node.textContent)) return;
@@ -56,15 +84,21 @@
       const frag = document.createDocumentFragment();
       let pos = 0;
       node.textContent.replace(priceRegex, (match, offset) => {
-        frag.append(node.ownerDocument.createTextNode(node.textContent.slice(pos, offset)));
+        frag.append(node.ownerDocument.createTextNode(
+          node.textContent.slice(pos, offset)
+        ));
 
         const num = parseFloat(match.replace(/[^0-9.]/g, ""));
-        const fv = num * Math.pow(1 + returnRate, years);
+        const fv = num * Math.pow(1 + annual, yrs);
 
-        const span = node.ownerDocument.createElement('span');
-        span.className = 'ptfy-bubble';
+        const span = node.ownerDocument.createElement("span");
+        span.className = "ptfy-bubble";
         span.textContent = match;
-        span.setAttribute('data-tip', `≈ £${fv.toLocaleString(undefined,{maximumFractionDigits:0})} at ${retireAge}`);
+        span.setAttribute(
+          "data-tip",
+          `≈ £${fv.toLocaleString()} at ${retireAge}`
+        );
+        span.style.animation = "ptfy-pop .25s ease-out";
         frag.append(span);
 
         pos = offset + match.length;
@@ -74,40 +108,31 @@
     });
   }
 
-  /** Run once on initial DOM */
+  /* ----------  Initial pass ---------- */
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  const initialNodes = [];
-  while (walker.nextNode()) initialNodes.push(walker.currentNode);
-  annotate(initialNodes);
+  const startNodes = [];
+  while (walker.nextNode()) startNodes.push(walker.currentNode);
+  annotate(startNodes);
 
-  /** Observe later additions – debounce to once per animation frame */
+  /* ----------  Observe mutations ---------- */
   let scheduled = false;
-  const obs = new MutationObserver((mutations) => {
+  const mo = new MutationObserver((muts) => {
     if (scheduled) return;
     scheduled = true;
     requestAnimationFrame(() => {
       scheduled = false;
-      const newTextNodes = [];
-      mutations.forEach((m) =>
+      const newText = [];
+      muts.forEach((m) =>
         m.addedNodes.forEach((n) => {
-          if (n.nodeType === 3) newTextNodes.push(n); // TEXT_NODE
-          else if (n.nodeType === 1) { // ELEMENT_NODE
+          if (n.nodeType === 3) newText.push(n);
+          else if (n.nodeType === 1) {
             const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT);
-            while (w.nextNode()) newTextNodes.push(w.currentNode);
+            while (w.nextNode()) newText.push(w.currentNode);
           }
         })
       );
-      if (newTextNodes.length) annotate(newTextNodes);
+      if (newText.length) annotate(newText);
     });
   });
-  obs.observe(document.body, { childList: true, subtree: true });
+  mo.observe(document.body, { childList: true, subtree: true });
 })();
-
-if (!document.getElementById('ptfy-style')) {
-  const style = document.createElement('style');
-  style.id = 'ptfy-style';
-  style.textContent = `
-    .ptfy-bubble { color:#0b8; cursor:help; }      /* green & pointer */
-  `;
-  document.head.append(style);
-}

@@ -1,30 +1,79 @@
+/* popup.css  –  bubbly & modern */
+:root {
+  --c-bg: #161d27;
+  --c-panel: #222d3b;
+  --c-accent: #0bc;
+  --c-text: #f1f5fa;
+  --c-muted: #8aa;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
 body {
-    font-family: system-ui, sans-serif;
-    margin: 12px;
-    width: 250px;
-  }
-  
-  h1 {
-    font-size: 1.2rem;
-    margin-bottom: 8px;
-  }
-  
-  label {
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 8px;
-    font-size: 0.85rem;
-  }
-  
-  input {
-    padding: 4px;
-    font-size: 0.9rem;
-  }
-  
-  button {
-    width: 100%;
-    padding: 6px;
-    font-size: 1rem;
-    cursor: pointer;
-  }
+  margin: 0;
+  width: 280px;
+  background: var(--c-bg);
+  color: var(--c-text);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+header {
+  background: var(--c-panel);
+  padding: 8px 12px;
+  border-bottom: 1px solid #0004;
+}
+h1 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--c-accent);
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 4px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+input,
+select {
+  padding: 6px 8px;
+  border: 1px solid #0006;
+  border-radius: 6px;
+  background: #10151d;
+  color: var(--c-text);
+  font-size: 0.9rem;
+}
+
+button {
+  margin-top: 6px;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: var(--c-accent);
+  color: #032;
+  cursor: pointer;
+  transition: transform .12s;
+}
+button:hover { transform: translateY(-2px); }
+
+footer {
+  text-align: center;
+  font-size: 0.65rem;
+  color: var(--c-muted);
+  padding-bottom: 6px;
+}
+
   
