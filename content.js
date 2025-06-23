@@ -93,23 +93,22 @@
   }
 
   /* ───────────── TOOLTIP ───────────── */
-  /* ───────────── showTip (v2.4-fixed) ───────────── */
+/* ───────────── showTip (v2.4-no-overlap) ───────────── */
 function showTip(e) {
-  hideTip();                               // remove any existing card
+  hideTip();                                             // remove any old card
 
   const span = e.currentTarget;
-  const rect = span.getBoundingClientRect();
+  const rect = span.getBoundingClientRect();            // price position
 
-  /* ---------- build tooltip markup ---------- */
+  /* ---------- build tooltip ---------- */
   const fv = parseFloat(span.dataset.fv);
   const fvTxt = "≈ £" + fv.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
 
-  const memeObj = memes.length
-    ? memes[Math.floor(Math.random() * memes.length)]
-    : null;
+  const memeObj =
+    memes.length ? memes[Math.floor(Math.random() * memes.length)] : null;
 
   const tip = document.createElement("div");
   tip.id = TIP_ID;
@@ -124,38 +123,61 @@ function showTip(e) {
   `;
   document.body.append(tip);
 
-  /* ---------- smart positioning ---------- */
-  const tipRect = tip.getBoundingClientRect();
-  const margin  = 12;                          // gap in px
+  const tipRect = tip.getBoundingClientRect();          // size after DOM insert
+  const gap     = 12;
+  const vw      = window.innerWidth;
+  const vh      = window.innerHeight;
 
-  // 1. Try above (centered)
-  let top  = rect.top - tipRect.height - margin;
-  let left = rect.left + rect.width / 2 - tipRect.width / 2;
+  /* ---------- helper: clamp inside viewport ---------- */
+  const inside = (t, l) =>
+    t >= 0 &&
+    l >= 0 &&
+    t + tipRect.height <= vh &&
+    l + tipRect.width  <= vw;
 
-  // 2. If no room above, place below
-  if (top < 0) {
-    top = rect.bottom + margin;
-  }
+  /* helper: do rectangles overlap? */
+  const collide = (t, l) =>
+    !(l + tipRect.width  < rect.left ||
+      l > rect.right ||
+      t + tipRect.height < rect.top ||
+      t > rect.bottom);
 
-  // 3. If card still overlaps the price vertically (e.g., large headings),
-  //    shove it right; if that overflows, shove it left.
-  const overlapsVertically =
-    top < rect.bottom && top + tipRect.height > rect.top;
-
-  if (overlapsVertically) {
-    left = rect.right + margin;                       // try right side
-    if (left + tipRect.width > window.innerWidth) {   // if off-screen
-      left = rect.left - tipRect.width - margin;      // try left side
+  /* candidates in preferred order */
+  const cand = [
+    {                       /* above, centered */
+      top:  rect.top - tipRect.height - gap,
+      left: rect.left + rect.width / 2 - tipRect.width / 2
+    },
+    {                       /* below, centered */
+      top:  rect.bottom + gap,
+      left: rect.left + rect.width / 2 - tipRect.width / 2
+    },
+    {                       /* right */
+      top:  rect.top,
+      left: rect.right + gap
+    },
+    {                       /* left */
+      top:  rect.top,
+      left: rect.left - tipRect.width - gap
     }
+  ];
+
+  /* pick first candidate that is fully visible & not colliding */
+  let pos = cand.find(c => inside(c.top, c.left) && !collide(c.top, c.left));
+
+  /* fallback: below & clamp horizontally */
+  if (!pos) {
+    pos = cand[1];                      // below version
+    pos.left = Math.max(
+      8,
+      Math.min(pos.left, vw - tipRect.width - 8)
+    );
+    pos.top = Math.max(8, Math.min(pos.top, vh - tipRect.height - 8));
   }
 
-  // 4. Clamp horizontally inside viewport
-  left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
-
-  // 5. Apply
-  tip.style.top  = `${top}px`;
-  tip.style.left = `${left}px`;
-  }
-  
+  /* apply */
+  tip.style.top  = `${pos.top}px`;
+  tip.style.left = `${pos.left}px`;
+}
   function hideTip(){ document.getElementById(TIP_ID)?.remove(); }
 })();
