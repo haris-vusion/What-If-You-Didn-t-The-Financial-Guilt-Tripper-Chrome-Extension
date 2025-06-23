@@ -93,25 +93,69 @@
   }
 
   /* ───────────── TOOLTIP ───────────── */
-  function showTip(e){
-    hideTip();
-    const s=e.currentTarget, r=s.getBoundingClientRect();
-    const fv=parseFloat(s.dataset.fv);
-    const fvTxt="≈ £"+fv.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-    const mObj=memes.length?memes[Math.floor(Math.random()*memes.length)]:null;
+  /* ───────────── showTip (v2.4-fixed) ───────────── */
+function showTip(e) {
+  hideTip();                               // remove any existing card
 
-    const tip=document.createElement("div"); tip.id=TIP_ID;
-    tip.innerHTML=`
-      <strong style="font-size:16px;">${fvTxt} at ${prefs.retireAge}</strong>
-      ${mObj?`<img src="${chrome.runtime.getURL(mObj.file)}" alt=""><div class="cap">${mObj.caption}</div>`:""}
-    `;
-    document.body.append(tip);
+  const span = e.currentTarget;
+  const rect = span.getBoundingClientRect();
 
-    const tr=tip.getBoundingClientRect();
-    const top=r.top-tr.height-12;
-    const left=r.left+r.width/2-tr.width/2;
-    tip.style.top =Math.max(8,top)+"px";
-    tip.style.left=Math.max(8,Math.min(left,window.innerWidth-tr.width-8))+"px";
+  /* ---------- build tooltip markup ---------- */
+  const fv = parseFloat(span.dataset.fv);
+  const fvTxt = "≈ £" + fv.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+
+  const memeObj = memes.length
+    ? memes[Math.floor(Math.random() * memes.length)]
+    : null;
+
+  const tip = document.createElement("div");
+  tip.id = TIP_ID;
+  tip.innerHTML = `
+    <strong style="font-size:16px;">${fvTxt} at ${prefs.retireAge}</strong>
+    ${
+      memeObj
+        ? `<img src="${chrome.runtime.getURL(memeObj.file)}" alt="">
+           <div class="cap">${memeObj.caption}</div>`
+        : ""
+    }
+  `;
+  document.body.append(tip);
+
+  /* ---------- smart positioning ---------- */
+  const tipRect = tip.getBoundingClientRect();
+  const margin  = 12;                          // gap in px
+
+  // 1. Try above (centered)
+  let top  = rect.top - tipRect.height - margin;
+  let left = rect.left + rect.width / 2 - tipRect.width / 2;
+
+  // 2. If no room above, place below
+  if (top < 0) {
+    top = rect.bottom + margin;
   }
+
+  // 3. If card still overlaps the price vertically (e.g., large headings),
+  //    shove it right; if that overflows, shove it left.
+  const overlapsVertically =
+    top < rect.bottom && top + tipRect.height > rect.top;
+
+  if (overlapsVertically) {
+    left = rect.right + margin;                       // try right side
+    if (left + tipRect.width > window.innerWidth) {   // if off-screen
+      left = rect.left - tipRect.width - margin;      // try left side
+    }
+  }
+
+  // 4. Clamp horizontally inside viewport
+  left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+
+  // 5. Apply
+  tip.style.top  = `${top}px`;
+  tip.style.left = `${left}px`;
+  }
+  
   function hideTip(){ document.getElementById(TIP_ID)?.remove(); }
 })();
