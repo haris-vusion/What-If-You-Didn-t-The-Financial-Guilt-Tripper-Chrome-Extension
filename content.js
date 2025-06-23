@@ -1,21 +1,21 @@
-//* content.js – v2.1  (2-decimals, caption, multiplier, confetti) */
+/* content.js – v2.3  (inflation-adjusted “how many” line added) */
 (() => {
   /* ───────────────────────── CONSTANTS ───────────────────────── */
-  const INDEXES = { nasdaq: 0.12, sp500: 0.10, ftse: 0.07, custom: 0 };
-  const PRICE_RE = /(?:£|\$|€|₹)\s?(?:\d{1,3}(?:[, ]\d{3})*|\d+)(?:\.\d{2})?/g;
-  const TIP_ID = "ptfy-floating-tip";
+  const INDEXES   = { nasdaq: 0.12, sp500: 0.10, ftse: 0.07, custom: 0 };
+  const INFLATION = 0.02;                                // 2 % per year (edit if you like)
+  const PRICE_RE  = /(?:£|\$|€|₹)\s?(?:\d{1,3}(?:[, ]\d{3})*|\d+)(?:\.\d{2})?/g;
+  const TIP_ID    = "ptfy-floating-tip";
 
   /* ───────────────────── PREFS & MEME LOADING ────────────────── */
   let prefs, memes = [];
 
   chrome.storage.sync.get(
-    { age: 30, retireAge: 65, index: "nasdaq", customRate: 0.10, active: true },
+    { age: 30, retireAge: 65, index: "nasdaq", customRate: 7, active: true },
     async data => {
       prefs = data;
       INDEXES.custom = data.customRate;
       try {
-        memes = await fetch(chrome.runtime.getURL("memes/memes.json"))
-                .then(r => r.json());
+        memes = await fetch(chrome.runtime.getURL("memes/memes.json")).then(r => r.json());
       } catch { memes = []; }
       if (prefs.active) { annotateWholePage(); observeDOM(); }
     }
@@ -61,6 +61,7 @@
       #${TIP_ID} img{max-width:200px;max-height:140px;border-radius:8px;}
       #${TIP_ID} .cap{font-size:12px;color:#555;text-align:center;}
       #${TIP_ID} .mult{font-size:13px;font-weight:600;color:var(--ptfy-accent);}
+      #${TIP_ID} .many{font-size:13px;font-weight:600;}
       #${TIP_ID}::after{
         content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
         border:6px solid transparent;border-top-color:#fff;
@@ -87,7 +88,8 @@
   function annotate(nodes) {
     const years = prefs.retireAge - prefs.age;
     if (years <= 0) return;
-    const rate = (prefs.index === "custom") ? prefs.customRate : INDEXES[prefs.index];
+    const rate = prefs.index === "custom" ? prefs.customRate : INDEXES[prefs.index];
+    const inflFactor = Math.pow(1 + INFLATION, years);
 
     nodes.forEach(node => {
       if (node.parentElement?.closest(".ptfy-bubble")) return;
@@ -102,13 +104,15 @@
         frag.append(node.ownerDocument.createTextNode(node.textContent.slice(pos, offset)));
 
         const principal = parseFloat(match.replace(/[^0-9.]/g, ""));
-        const futureVal = principal * Math.pow(1 + rate, years);
+        const futureVal = principal * Math.pow(1 + rate, years);      // nominal FV
+        const buyable   = futureVal / (principal * inflFactor);        // real terms
 
         const span = node.ownerDocument.createElement("span");
         span.className = "ptfy-bubble";
         span.textContent = match;
-        span.dataset.fv = futureVal;
-        span.dataset.principal = principal;
+        span.dataset.fv  = futureVal;
+        span.dataset.pri = principal;
+        span.dataset.buy = buyable;
         span.addEventListener("mouseenter", showTip);
         span.addEventListener("mouseleave", hideTip);
         frag.append(span);
@@ -129,13 +133,15 @@
       requestAnimationFrame(() => {
         queued = false;
         const fresh = [];
-        muts.forEach(m => m.addedNodes.forEach(n => {
-          if (n.nodeType === 3) fresh.push(n);
-          else if (n.nodeType === 1) {
-            const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT);
-            while (w.nextNode()) fresh.push(w.currentNode);
-          }
-        }));
+        muts.forEach(m =>
+          m.addedNodes.forEach(n => {
+            if (n.nodeType === 3) fresh.push(n);
+            else if (n.nodeType === 1) {
+              const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT);
+              while (w.nextNode()) fresh.push(w.currentNode);
+            }
+          })
+        );
         if (fresh.length) annotate(fresh);
       });
     }).observe(document.body, { childList: true, subtree: true });
@@ -147,10 +153,13 @@
     const span = e.currentTarget;
     const rect = span.getBoundingClientRect();
 
-    const fv = parseFloat(span.dataset.fv);
-    const principal = parseFloat(span.dataset.principal);
+    const fv   = parseFloat(span.dataset.fv);
+    const pri  = parseFloat(span.dataset.pri);
+    const buy  = parseFloat(span.dataset.buy);
+
     const fvTxt = "≈ £" + fv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const multiplier = (fv / principal).toFixed(1);
+    const mult  = (fv / pri).toFixed(1);
+    const many  = buy >= 1000 ? buy.toExponential(1) : buy.toFixed(1);
 
     const memeObj = memes.length ? memes[Math.floor(Math.random() * memes.length)] : null;
 
@@ -159,7 +168,8 @@
     tip.innerHTML = `
       <strong style="font-size:16px;">${fvTxt} at ${prefs.retireAge}</strong>
       ${memeObj ? `<img src="${chrome.runtime.getURL(memeObj.file)}" alt=""><div class="cap">${memeObj.caption}</div>` : ""}
-      <div class="mult">💸 ${multiplier}× your money</div>
+      <div class="mult">💸 ${mult}× your money</div>
+      <div class="many">🛍️ Could buy <b>${many}</b> of these</div>
     `;
     document.body.append(tip);
 
@@ -167,7 +177,7 @@
     const top  = rect.top  - tipRect.height - 12;
     const left = rect.left + rect.width / 2 - tipRect.width / 2;
 
-    tip.style.top  = Math.max(8, top)  + "px";
+    tip.style.top  = Math.max(8, top) + "px";
     tip.style.left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8)) + "px";
   }
 
