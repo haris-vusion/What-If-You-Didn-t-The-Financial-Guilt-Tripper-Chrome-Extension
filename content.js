@@ -93,22 +93,23 @@
   }
 
   /* ───────────── TOOLTIP ───────────── */
-/* ───────────── showTip (v2.4-no-overlap) ───────────── */
+/* ───────────── showTip (always-below version) ───────────── */
 function showTip(e) {
-  hideTip();                                             // remove any old card
+  hideTip();                                            // remove any existing card
 
   const span = e.currentTarget;
-  const rect = span.getBoundingClientRect();            // price position
+  const rect = span.getBoundingClientRect();
 
-  /* ---------- build tooltip ---------- */
+  /* ---------- build tooltip markup ---------- */
   const fv = parseFloat(span.dataset.fv);
   const fvTxt = "≈ £" + fv.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
 
-  const memeObj =
-    memes.length ? memes[Math.floor(Math.random() * memes.length)] : null;
+  const memeObj = memes.length
+    ? memes[Math.floor(Math.random() * memes.length)]
+    : null;
 
   const tip = document.createElement("div");
   tip.id = TIP_ID;
@@ -123,61 +124,27 @@ function showTip(e) {
   `;
   document.body.append(tip);
 
-  const tipRect = tip.getBoundingClientRect();          // size after DOM insert
-  const gap     = 12;
-  const vw      = window.innerWidth;
-  const vh      = window.innerHeight;
+  /* ---------- position: always BELOW ---------- */
+  const tipRect = tip.getBoundingClientRect();
+  const gap     = 12;                         // vertical gap in px
 
-  /* ---------- helper: clamp inside viewport ---------- */
-  const inside = (t, l) =>
-    t >= 0 &&
-    l >= 0 &&
-    t + tipRect.height <= vh &&
-    l + tipRect.width  <= vw;
+  // Vertical: directly below the price
+  let top  = rect.bottom + gap;
 
-  /* helper: do rectangles overlap? */
-  const collide = (t, l) =>
-    !(l + tipRect.width  < rect.left ||
-      l > rect.right ||
-      t + tipRect.height < rect.top ||
-      t > rect.bottom);
+  // Horizontal: center under the price
+  let left = rect.left + rect.width / 2 - tipRect.width / 2;
 
-  /* candidates in preferred order */
-  const cand = [
-    {                       /* above, centered */
-      top:  rect.top - tipRect.height - gap,
-      left: rect.left + rect.width / 2 - tipRect.width / 2
-    },
-    {                       /* below, centered */
-      top:  rect.bottom + gap,
-      left: rect.left + rect.width / 2 - tipRect.width / 2
-    },
-    {                       /* right */
-      top:  rect.top,
-      left: rect.right + gap
-    },
-    {                       /* left */
-      top:  rect.top,
-      left: rect.left - tipRect.width - gap
-    }
-  ];
+  // Clamp inside viewport horizontally (8-px padding)
+  left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
 
-  /* pick first candidate that is fully visible & not colliding */
-  let pos = cand.find(c => inside(c.top, c.left) && !collide(c.top, c.left));
-
-  /* fallback: below & clamp horizontally */
-  if (!pos) {
-    pos = cand[1];                      // below version
-    pos.left = Math.max(
-      8,
-      Math.min(pos.left, vw - tipRect.width - 8)
-    );
-    pos.top = Math.max(8, Math.min(pos.top, vh - tipRect.height - 8));
+  // Make sure it never runs off the bottom of the viewport
+  if (top + tipRect.height > window.innerHeight - 8) {
+    top = window.innerHeight - tipRect.height - 8;
   }
 
-  /* apply */
-  tip.style.top  = `${pos.top}px`;
-  tip.style.left = `${pos.left}px`;
+  tip.style.top  = `${top}px`;
+  tip.style.left = `${left}px`;
 }
+
   function hideTip(){ document.getElementById(TIP_ID)?.remove(); }
 })();
