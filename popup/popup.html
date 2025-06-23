@@ -2,15 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>What If You Didn't? — The Financial Guilt Tripper Chrome Extension Settings</title>
+  <title>Future-You Settings</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
   <header>
-    <h1>What If You Didn't? — The Financial Guilt Tripper Chrome Extension</h1>
+    <h1>Future-You</h1>
   </header>
 
   <main>
+    <label class="switch-row">
+      <span>Extension Enabled</span>
+      <label class="switch">
+        <input type="checkbox" id="active">
+        <span class="slider"></span>
+      </label>
+    </label>
+
     <label>
       <span>Age</span>
       <input type="number" id="age" min="1" max="120" />
@@ -27,7 +35,7 @@
         <option value="nasdaq">NASDAQ 100 (12 % pa)</option>
         <option value="sp500">S&amp;P 500 (10 % pa)</option>
         <option value="ftse">FTSE 100 (7 % pa)</option>
-        <option value="custom">Custom&nbsp;rate…</option>
+        <option value="custom">Custom rate…</option>
       </select>
     </label>
 
@@ -40,7 +48,7 @@
   </main>
 
   <footer>
-    <small>v1.0 · Stop buying random stuff, invest instead.</small>
+    <small>v2.0 · Stop buying random stuff, invest instead.</small>
   </footer>
 
   <script src="popup.js"></script>
