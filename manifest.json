@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "What If You Didn't? — The Financial Guilt Tripper Chrome Extension",
-    "version": "0.1.1",
+    "version": "1.0.0",
     "description": "Shows what that impulse-buy could be worth by retirement.",
     "icons": {
       "16": "icons/richspongebob1616.png",
