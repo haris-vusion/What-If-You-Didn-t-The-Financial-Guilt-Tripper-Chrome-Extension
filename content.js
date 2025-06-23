@@ -14,7 +14,10 @@
       INDEXES.custom=d.customRate;
       try{ memes=await fetch(chrome.runtime.getURL("memes/memes.json")).then(r=>r.json()); }
       catch{ memes=[]; }
-      if(prefs.active){ annotateWholePage(); observeDOM(); }
+      if(prefs.active){ 
+        annotateWholePage();
+        annotateAmazonPrices;
+        observeDOM(); }
     }
   );
 
@@ -48,6 +51,37 @@
     const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
     const arr=[]; while(w.nextNode()) arr.push(w.currentNode); annotate(arr);
   }
+  /* ───────── Amazon price helper ───────── */
+function annotateAmazonPrices() {
+  const years = prefs.retireAge - prefs.age;
+  if (years <= 0) return;
+  const rate = prefs.index === "custom" ? prefs.customRate : INDEXES[prefs.index];
+
+  // every visible price block
+  document.querySelectorAll("span.a-price:not(.ptfy-amz)").forEach(box => {
+    const screenReader = box.querySelector("span.a-offscreen");
+    if (!screenReader) return;
+
+    const text = screenReader.textContent.trim();      // e.g. "£15.99"
+    if (!PRICE_RE.test(text)) return;
+
+    const principal = parseFloat(text.replace(/[^0-9.]/g, ""));
+    const futureVal = principal * Math.pow(1 + rate, years);
+
+    /* build one invisible anchor we can hover on */
+    const anchor = document.createElement("span");
+    anchor.className = "ptfy-bubble";
+    anchor.textContent = text;                         // keeps original look (hidden)
+    anchor.style.cssText = "position:absolute;inset:0;opacity:0;"; // sits on top
+    anchor.dataset.fv = futureVal;
+    anchor.addEventListener("mouseenter", showTip);
+    anchor.addEventListener("mouseleave", hideTip);
+
+    box.style.position = "relative";                   // ensure positioning context
+    box.append(anchor);                                // overlay inside .a-price
+    box.classList.add("ptfy-amz");                     // so we don’t re-process
+  });
+}
   function annotate(nodes){
     const yrs=prefs.retireAge-prefs.age; if(yrs<=0) return;
     const rate=(prefs.index==="custom"?prefs.customRate:INDEXES[prefs.index]);
